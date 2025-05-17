@@ -42,7 +42,6 @@
     <string name="menu_export_update">Güncellemeyi dışarı aktar</string>
     <string name="menu_show_changelog">Değişiklikleri göster</string>
     <string name="menu_ab_perf_mode">Güncelleme sürecini öncelikli hale getir</string>
-    <string name="menu_update_recovery">Kurtarma modunu güncelle</string>
     <string name="toast_forced_update_recovery">Bu cihazda AndroidOne Experience Kurtarma Modu güncellemelerini devre dışı bırakmak imkansızdır.</string>
     <string name="snack_updates_found">Yeni güncelleştirmeler bulundu</string>
     <string name="snack_no_updates_found">Yeni güncelleme bulunamadı</string>

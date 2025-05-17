@@ -75,7 +75,6 @@
     <string name="menu_show_changelog">Show changelog</string>
     <string name="menu_changelog_url" translatable="false">https://get.aosp.com/changes</string>
     <string name="menu_ab_perf_mode">Prioritize update process</string>
-    <string name="menu_update_recovery">Update recovery</string>
     <string name="toast_forced_update_recovery">It is impossible to disable AndroidOne Experience Recovery updates on this device.</string>
 
     <string name="snack_updates_found">New updates found</string>

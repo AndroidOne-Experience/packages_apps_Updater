@@ -37,7 +37,6 @@
     <string name="menu_copy_url">Копіювати URL</string>
     <string name="menu_export_update">Експорт оновлення</string>
     <string name="menu_show_changelog">Журнал змін</string>
-    <string name="menu_update_recovery">Оновити режим відновлення</string>
     <string name="toast_forced_update_recovery">Неможливо вимкнути оновлення режиму відновлення AndroidOne Experience на цьому пристрої.</string>
     <string name="snack_updates_found">Знайдено оновлення</string>
     <string name="snack_no_updates_found">Оновлень не знайдено</string>

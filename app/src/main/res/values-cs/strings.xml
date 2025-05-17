@@ -42,7 +42,6 @@
     <string name="menu_export_update">Export aktualizace</string>
     <string name="menu_show_changelog">Zobrazit seznam změn</string>
     <string name="menu_ab_perf_mode">Upřednostňovat proces aktualizace</string>
-    <string name="menu_update_recovery">Aktualizovat recovery oddíl</string>
     <string name="toast_forced_update_recovery">Na tomto zařízení není možné zakázat aktualizace oddílu AndroidOne Experience recovery</string>
     <string name="snack_updates_found">Nalezeny nové aktualizace</string>
     <string name="snack_no_updates_found">Nové aktualizace nenalezeny</string>

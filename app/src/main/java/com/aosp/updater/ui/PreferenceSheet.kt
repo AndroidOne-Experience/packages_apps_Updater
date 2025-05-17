@@ -30,7 +30,6 @@ class PreferenceSheet : BottomSheetDialogFragment() {
     private lateinit var preferencesAbPerfMode: Switch
     private lateinit var preferencesAutoDeleteUpdates: Switch
     private lateinit var preferencesMeteredNetworkWarning: Switch
-    private lateinit var preferencesUpdateRecovery: Switch
     private lateinit var preferencesAutoUpdatesCheckInterval: Spinner
 
     override fun getTheme(): Int = R.style.BottomSheetDialogTheme
@@ -50,7 +49,6 @@ class PreferenceSheet : BottomSheetDialogFragment() {
             preferencesAbPerfMode = requireViewById(R.id.preferences_ab_perf_mode)
             preferencesAutoDeleteUpdates = requireViewById(R.id.preferences_auto_delete_updates)
             preferencesMeteredNetworkWarning = requireViewById(R.id.preferences_metered_network_warning)
-            preferencesUpdateRecovery = requireViewById(R.id.preferences_update_recovery)
             preferencesAutoUpdatesCheckInterval = requireViewById(R.id.preferences_auto_updates_check_interval)
         }
 
@@ -71,34 +69,6 @@ class PreferenceSheet : BottomSheetDialogFragment() {
                 prefs!!.getBoolean(Constants.PREF_MOBILE_DATA_WARNING, true))
         preferencesAbPerfMode.isChecked =
             prefs!!.getBoolean(Constants.PREF_AB_PERF_MODE, true)
-
-        if (resources.getBoolean(R.bool.config_hideRecoveryUpdate) || Utils.isABDevice()) {
-            // Hide the update feature if it's A/B device or explicitly requested.
-            // Explicit request might be the case of A-only devices using prebuilt vendor images.
-            preferencesUpdateRecovery.visibility = View.GONE
-        } else if (Utils.isRecoveryUpdateExecPresent()) {
-            preferencesUpdateRecovery.isChecked =
-                SystemProperties.getBoolean(Constants.UPDATE_RECOVERY_PROPERTY, false)
-        } else {
-            // There is no recovery updater script in the device, so the feature is considered
-            // forcefully enabled, just to avoid users to be confused and complain that
-            // recovery gets overwritten. That's the case of A/B and recovery-in-boot devices.
-            preferencesUpdateRecovery.isChecked = true
-            preferencesUpdateRecovery.setOnTouchListener(object : View.OnTouchListener {
-                private var forcedUpdateToast: Toast? = null
-                override fun onTouch(v: View, event: MotionEvent): Boolean {
-                    if (forcedUpdateToast != null) {
-                        forcedUpdateToast!!.cancel()
-                    }
-                    forcedUpdateToast = Toast.makeText(
-                        requireContext(),
-                        getString(R.string.toast_forced_update_recovery), Toast.LENGTH_SHORT
-                    )
-                    forcedUpdateToast?.show()
-                    return true
-                }
-            })
-        }
     }
 
     override fun onDismiss(dialog: DialogInterface) {
@@ -122,13 +92,6 @@ class PreferenceSheet : BottomSheetDialogFragment() {
         if (Utils.isABDevice()) {
             val enableABPerfMode: Boolean = preferencesAbPerfMode.isChecked
             mUpdaterService?.updaterController?.setPerformanceMode(enableABPerfMode)
-        }
-        if (Utils.isRecoveryUpdateExecPresent()) {
-            val enableRecoveryUpdate: Boolean = preferencesUpdateRecovery.isChecked
-            SystemProperties.set(
-                Constants.UPDATE_RECOVERY_PROPERTY,
-                enableRecoveryUpdate.toString()
-            )
         }
         super.onDismiss(dialog)
     }

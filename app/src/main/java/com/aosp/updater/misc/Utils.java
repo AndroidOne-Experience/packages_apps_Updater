@@ -380,10 +380,6 @@ public class Utils {
         }
     }
 
-    public static boolean isRecoveryUpdateExecPresent() {
-        return new File(Constants.UPDATE_RECOVERY_EXEC).exists();
-    }
-
     public static boolean isDeleteUpdatesForceEnabled(Context context) {
         return context.getResources().getBoolean(R.bool.config_forceDeleteUpdates);
     }
