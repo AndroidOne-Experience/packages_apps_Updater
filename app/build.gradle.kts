@@ -17,10 +17,10 @@ val keystoreProperties = Properties().apply {
 
 android {
     compileSdk = 35
-    namespace = "net.pixelos.ota"
+    namespace = "net.aosp.ota"
 
     defaultConfig {
-        applicationId = "net.pixelos.ota"
+        applicationId = "net.aosp.ota"
         minSdk = 34
         targetSdk = 35
         versionCode = 1
