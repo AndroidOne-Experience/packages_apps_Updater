@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2018-2020 The LineageOS Project
 # SPDX-License-Identifier: Apache-2.0
 
-updates_dir=/data/aosp_updates
+updates_dir=/data/system_updates
 
 if [ ! -f "$1" ]; then
    echo "Usage: $0 ZIP [UNVERIFIED]"
