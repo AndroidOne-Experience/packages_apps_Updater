@@ -174,14 +174,6 @@ object Utils {
     }
 
     @JvmStatic
-    fun getCertifiedPropsURL(context: Context): String {
-        val buildVersion: String = SystemProperties.get(Constants.PROP_BUILD_VERSION)
-        val certifiedPropsUrl: String = context.getString(R.string.certified_prop_url)
-
-        return certifiedPropsUrl.replace("{version}", buildVersion)
-    }
-
-    @JvmStatic
     fun triggerUpdate(context: Context, downloadId: String?) {
         val intent = Intent(context, UpdaterService::class.java)
         intent.setAction(UpdaterService.ACTION_INSTALL_UPDATE)

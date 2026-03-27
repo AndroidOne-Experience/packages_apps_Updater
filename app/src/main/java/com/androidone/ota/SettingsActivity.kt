@@ -15,10 +15,7 @@
  */
 package com.androidone.ota
 
-import android.app.PendingIntent
 import android.content.Intent
-import android.content.pm.PackageInfo
-import android.content.pm.PackageInstaller
 import android.os.Bundle
 import android.os.SystemProperties
 import android.widget.Toast
@@ -32,18 +29,9 @@ import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceManager
 import androidx.preference.SwitchPreferenceCompat
 import com.google.android.material.appbar.MaterialToolbar
-import java.io.File
-import java.io.FileInputStream
-import java.util.Locale
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.androidone.ota.controller.UpdaterController
-import com.androidone.ota.download.APKDownloader
 import com.androidone.ota.misc.Constants
 import com.androidone.ota.misc.Utils
-import com.androidone.ota.misc.Utils.getLocalVersion
 
 class SettingsActivity : AppCompatActivity(R.layout.activity_settings) {
     private val toolbar by lazy { findViewById<MaterialToolbar>(R.id.toolbar) }
@@ -99,16 +87,6 @@ class SettingsActivity : AppCompatActivity(R.layout.activity_settings) {
         }
         private val generalCategory by lazy {
             preferenceScreen.findPreference<PreferenceCategory>("general")!!
-        }
-        private val checkForCertifiedProps by lazy {
-            findPreference<Preference>(Constants.PREF_CHECK_FOR_CERTIFIED_PROPS)!!
-        }
-        private val certifiedPropStatus by lazy {
-            findPreference<Preference>(Constants.PREF_CERTIFIED_PROP_STATUS)!!
-        }
-
-        private val certifiedPropOverlayPkgName by lazy {
-            resources.getString(R.string.certified_prop_overlay_name)
         }
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -182,160 +160,6 @@ class SettingsActivity : AppCompatActivity(R.layout.activity_settings) {
             if (!streamOta.isVisible && downloadsCategory != null) {
                 preferenceScreen.removePreference(downloadsCategory)
             }
-
-            setupPreferenceAction(Action.CHECK_UPDATES)
-            updateCertifiedPropsStatus(-1)
-        }
-
-        private fun setupPreferenceAction(action: Action) {
-            when (action) {
-                Action.CHECK_UPDATES -> {
-                    checkForCertifiedProps.apply {
-                        layoutResource = R.layout.certified_props_check
-                        onPreferenceClickListener =
-                            Preference.OnPreferenceClickListener {
-                                CoroutineScope(Dispatchers.Main).launch { checkForCertifiedPropsUpdate() }
-                                true
-                            }
-                    }
-                }
-
-                Action.DOWNLOAD_AND_INSTALL -> {
-                    checkForCertifiedProps.apply {
-                        layoutResource = R.layout.certified_props_download_install
-                        onPreferenceClickListener =
-                            Preference.OnPreferenceClickListener {
-                                CoroutineScope(Dispatchers.Main).launch { updateCertifiedProps() }
-                                true
-                            }
-                    }
-                }
-            }
-        }
-
-        private enum class Action {
-            CHECK_UPDATES,
-            DOWNLOAD_AND_INSTALL,
-        }
-
-        private suspend fun checkForCertifiedPropsUpdate() {
-            certifiedPropStatus.summary = getString(R.string.certified_prop_checking)
-            checkForCertifiedProps.isEnabled = false
-
-            val path = File(requireContext().getExternalFilesDir(null), "prop.apk").absolutePath
-            val url = Utils.getCertifiedPropsURL(requireContext())
-
-            var success: Boolean
-            var version: Long
-
-            val file = File(path)
-            if (file.exists()) file.delete()
-
-            withContext(Dispatchers.Main) {
-                try {
-                    withContext(Dispatchers.IO) { success = APKDownloader.downloadApk(path, url) }
-                    if (success) {
-                        version = getPackageVersion(path)
-                    } else {
-                        showToast(R.string.certified_prop_download_failed)
-                        return@withContext
-                    }
-                    updateCertifiedPropsStatus(version)
-                } catch (e: Exception) {
-                    showToast(R.string.certified_prop_download_failed)
-                } finally {
-                    checkForCertifiedProps.isEnabled = true
-                }
-            }
-        }
-
-        private fun getPackageVersion(path: String): Long {
-            val pm = requireContext().packageManager
-            val pkgInfo: PackageInfo = pm.getPackageArchiveInfo(path, 0)!!
-            return pkgInfo.longVersionCode
-        }
-
-        private fun showToast(stringId: Int) {
-            Toast.makeText(context, stringId, Toast.LENGTH_LONG).show()
-        }
-
-        private fun updateCertifiedProps() {
-            val path = File(requireContext().getExternalFilesDir(null), "prop.apk").absolutePath
-
-            if (installApk(path)) showToast(R.string.certified_prop_install_success)
-            else showToast(R.string.certified_prop_install_failed)
-
-            checkForCertifiedProps.isEnabled = true
-        }
-
-        private fun installApk(path: String): Boolean {
-            return try {
-                val packageInstaller = requireContext().packageManager.packageInstaller
-                val sessionParams =
-                    PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-
-                val sessionId = packageInstaller.createSession(sessionParams)
-                val session = packageInstaller.openSession(sessionId)
-
-                FileInputStream(File(path)).use { inputStream ->
-                    session.openWrite("app_install", 0, -1).use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                        session.fsync(outputStream)
-                    }
-                }
-                val receiverIntent = Intent(context, PackageInstallerStatusReceiver::class.java)
-                val flags = PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                val receiverPendingIntent =
-                    PendingIntent.getBroadcast(context, 0, receiverIntent, flags)
-                session.commit(receiverPendingIntent.intentSender)
-
-                session.close()
-                true
-            } catch (e: Exception) {
-                e.printStackTrace()
-                false
-            }
-        }
-
-        private fun updateCertifiedPropsStatus(remoteVersion: Long) {
-            val status = StringBuilder()
-            val version: Long = getLocalVersion(requireContext(), certifiedPropOverlayPkgName)
-            val unknownStr = resources.getString(R.string.text_download_size_unknown)
-
-            fun formatVersion(version: Long): String {
-                return if (version > 0) {
-                    val versionStr = version.toString().padStart(3, '0')
-                    val major = versionStr.dropLast(2).toInt()
-                    val minor = versionStr.takeLast(2).toInt()
-                    String.format(Locale.getDefault(), "%d.%02d", major, minor)
-                } else {
-                    unknownStr
-                }
-            }
-
-            val filteredVersion = formatVersion(version)
-            val filteredRemoteVersion = formatVersion(remoteVersion)
-
-            val versionStr =
-                String.format(
-                    Locale.getDefault(),
-                    getString(R.string.certified_prop_info),
-                    filteredVersion
-                )
-            val remoteStr =
-                String.format(
-                    Locale.getDefault(),
-                    getString(R.string.certified_prop_remote),
-                    filteredRemoteVersion,
-                )
-
-            val updateAvailable = remoteVersion > version
-
-            status.append(versionStr)
-            status.append(remoteStr)
-
-            if (updateAvailable) setupPreferenceAction(Action.DOWNLOAD_AND_INSTALL)
-            certifiedPropStatus.summary = status
         }
 
         private fun supportsPerfMode(): Boolean {

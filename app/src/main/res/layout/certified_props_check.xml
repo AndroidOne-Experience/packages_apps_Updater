@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.button.MaterialButton xmlns:android="http://schemas.android.com/apk/res/android"
-    style="@style/Widget.Material3.Button.TextButton"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_marginStart="?attr/listPreferredItemPaddingStart"
-    android:padding="0dp"
-    android:text="@string/certified_prop_check" />

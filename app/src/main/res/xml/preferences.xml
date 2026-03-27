@@ -27,24 +27,6 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:title="@string/play_integrity_header"
-        app:allowDividerAbove="false"
-        app:iconSpaceReserved="false"
-        app:key="play_integrity">
-
-        <Preference
-            android:key="certified_prop_status"
-            android:selectable="false"
-            android:title="@string/certified_prop_status"
-            app:iconSpaceReserved="false" />
-
-        <Preference
-            android:key="check_certified_prop"
-            android:layout="@layout/certified_props_check"
-            app:iconSpaceReserved="false" />
-    </PreferenceCategory>
-
-    <PreferenceCategory
         android:title="@string/downloads_header"
         app:iconSpaceReserved="false"
         app:key="downloads">
