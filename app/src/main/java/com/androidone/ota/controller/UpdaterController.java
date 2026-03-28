@@ -25,11 +25,9 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import androidx.preference.PreferenceManager;
 
 import com.androidone.ota.UpdatesDbHelper;
 import com.androidone.ota.download.DownloadClient;
-import com.androidone.ota.misc.Constants;
 import com.androidone.ota.misc.Utils;
 import com.androidone.ota.model.Update;
 import com.androidone.ota.model.UpdateInfo;
@@ -256,7 +254,7 @@ public class UpdaterController {
                     if (entry != null) {
                         Update update = entry.mUpdate;
                         File file = update.getFile();
-                        if (file != null && file.exists() && verifyPackage(file)) {
+                        if (file.exists() && verifyPackage(file)) {
                             //noinspection ResultOfMethodCallIgnored
                             file.setReadable(true, false);
                             update.setPersistentStatus(UpdateStatus.Persistent.VERIFIED);
@@ -276,9 +274,6 @@ public class UpdaterController {
     }
 
     private boolean verifyPackage(File file) {
-        if (file == null) {
-            return false;
-        }
         try {
             android.os.RecoverySystem.verifyPackage(file, null, null);
             Log.e(TAG, "Verification successful");
@@ -297,14 +292,6 @@ public class UpdaterController {
     }
 
     private boolean fixUpdateStatus(Update update) {
-        if (update.getStream()) {
-            if (update.getPersistentStatus() == UpdateStatus.Persistent.UNKNOWN) {
-                update.setStatus(UpdateStatus.VERIFIED);
-                update.setPersistentStatus(UpdateStatus.Persistent.VERIFIED);
-                mUpdatesDbHelper.changeUpdateStatus(update);
-            }
-            return true;
-        }
         switch (update.getPersistentStatus()) {
             case UpdateStatus.Persistent.VERIFIED:
             case UpdateStatus.Persistent.INCOMPLETE:
@@ -380,18 +367,6 @@ public class UpdaterController {
             return;
         }
         Update update = entry.mUpdate;
-
-        boolean streamEnabled = PreferenceManager.getDefaultSharedPreferences(mContext)
-                .getBoolean(Constants.PREF_STREAM_OTA, true);
-        if (update.getStream() && streamEnabled) {
-            Log.d(TAG, "Streaming update detected, skipping download");
-            update.setStatus(UpdateStatus.VERIFIED);
-            update.setPersistentStatus(UpdateStatus.Persistent.VERIFIED);
-            mUpdatesDbHelper.changeUpdateStatus(update);
-            notifyUpdateChange(downloadId);
-            return;
-        }
-
         File destination = new File(mDownloadRoot, update.getName());
         if (destination.exists()) {
             destination = Utils.appendSequentialNumber(destination);
@@ -491,7 +466,7 @@ public class UpdaterController {
         new Thread(
                 () -> {
                     File file = update.getFile();
-                    if (file != null && file.exists() && !file.delete()) {
+                    if (file.exists() && !file.delete()) {
                         Log.e(TAG, "Could not delete " + file.getAbsolutePath());
                     }
                     mUpdatesDbHelper.removeUpdate(update.getDownloadId());

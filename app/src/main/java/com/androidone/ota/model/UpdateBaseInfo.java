@@ -27,12 +27,4 @@ public interface UpdateBaseInfo {
     String getDownloadUrl();
 
     long getFileSize();
-
-    boolean getStream();
-
-    String getStreamUrl();
-
-    long getPayloadOffset();
-
-    java.util.List<String> getPayloadProperties();
 }

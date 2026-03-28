@@ -16,11 +16,6 @@
 package com.androidone.ota.controller;
 
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
-import android.widget.Toast;
-
-import com.androidone.ota.R;
 import android.content.SharedPreferences;
 import android.os.ServiceSpecificException;
 import android.os.UpdateEngine;
@@ -118,17 +113,9 @@ class ABUpdateInstaller {
                     if (errorCode != UpdateEngine.ErrorCodeConstants.SUCCESS) {
                         installationDone(false);
                         Update update = mUpdaterController.getActualUpdate(mDownloadId);
-                        if (update.getStream()) {
-                            new Handler(Looper.getMainLooper()).post(() ->
-                                    Toast.makeText(mContext, R.string.stream_download_failed_toast,
-                                            Toast.LENGTH_LONG).show());
-                            update.setStream(false);
-                            mUpdaterController.startDownload(mDownloadId);
-                        } else {
-                            update.setInstallProgress(0);
-                            update.setStatus(UpdateStatus.INSTALLATION_FAILED);
-                            mUpdaterController.notifyUpdateChange(mDownloadId);
-                        }
+                        update.setInstallProgress(0);
+                        update.setStatus(UpdateStatus.INSTALLATION_FAILED);
+                        mUpdaterController.notifyUpdateChange(mDownloadId);
                     }
                 }
             };
@@ -180,61 +167,8 @@ class ABUpdateInstaller {
 
         mDownloadId = downloadId;
 
-        Update update = mUpdaterController.getActualUpdate(mDownloadId);
-        if (update.getStream()) {
-            installStream(update);
-        } else {
-            File file = update.getFile();
-            install(file, downloadId);
-        }
-    }
-
-    private void installStream(Update update) {
-        long offset = update.getPayloadOffset();
-        List<String> properties = update.getPayloadProperties();
-        String[] headerKeyValuePairs = new String[properties.size()];
-        headerKeyValuePairs = properties.toArray(headerKeyValuePairs);
-
-        if (!mBound) {
-            mBound = mUpdateEngine.bind(mUpdateEngineCallback);
-            if (!mBound) {
-                Log.e(TAG, "Could not bind");
-                mUpdaterController
-                        .getActualUpdate(mDownloadId)
-                        .setStatus(UpdateStatus.INSTALLATION_FAILED);
-                mUpdaterController.notifyUpdateChange(mDownloadId);
-                return;
-            }
-        }
-
-        boolean enableABPerfMode =
-                PreferenceManager.getDefaultSharedPreferences(mContext)
-                        .getBoolean(Constants.PREF_AB_PERF_MODE, false);
-        try {
-            mUpdateEngine.setPerformanceMode(enableABPerfMode);
-        } catch (ServiceSpecificException e) {
-            Log.w(TAG, "Failed to set performance mode, continuing anyway", e);
-        }
-
-        try {
-            mUpdateEngine.applyPayload(update.getStreamUrl(), offset, 0, headerKeyValuePairs);
-        } catch (ServiceSpecificException e) {
-            if (e.errorCode == 66 /* kUpdateAlreadyInstalled */) {
-                installationDone(true);
-                mUpdaterController.getActualUpdate(mDownloadId).setStatus(UpdateStatus.INSTALLED);
-                mUpdaterController.notifyUpdateChange(mDownloadId);
-                return;
-            }
-            throw e;
-        }
-
-        mUpdaterController.getActualUpdate(mDownloadId).setStatus(UpdateStatus.INSTALLING);
-        mUpdaterController.notifyUpdateChange(mDownloadId);
-
-        PreferenceManager.getDefaultSharedPreferences(mContext)
-                .edit()
-                .putString(PREF_INSTALLING_AB_ID, mDownloadId)
-                .apply();
+        File file = mUpdaterController.getActualUpdate(mDownloadId).getFile();
+        install(file, downloadId);
     }
 
     public void install(File file, String downloadId) {

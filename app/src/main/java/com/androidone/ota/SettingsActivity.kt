@@ -79,9 +79,6 @@ class SettingsActivity : AppCompatActivity(R.layout.activity_settings) {
         private val updateRecovery by lazy {
             findPreference<SwitchPreferenceCompat>(Constants.PREF_UPDATE_RECOVERY)!!
         }
-        private val streamOta by lazy {
-            findPreference<SwitchPreferenceCompat>(Constants.PREF_STREAM_OTA)!!
-        }
         private val sharedPreference by lazy {
             PreferenceManager.getDefaultSharedPreferences(requireContext())
         }
@@ -154,12 +151,6 @@ class SettingsActivity : AppCompatActivity(R.layout.activity_settings) {
                     }
             }
 
-            streamOta.isVisible = Utils.isABDevice
-
-            val downloadsCategory = findPreference<PreferenceCategory>("downloads")
-            if (!streamOta.isVisible && downloadsCategory != null) {
-                preferenceScreen.removePreference(downloadsCategory)
-            }
         }
 
         private fun supportsPerfMode(): Boolean {
