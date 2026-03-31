@@ -187,7 +187,7 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
         setSupportActionBar(toolbar)
         supportActionBar?.apply {
             title = null
-            setDisplayHomeAsUpEnabled(true)
+            setDisplayHomeAsUpEnabled(false)
         }
 
 
