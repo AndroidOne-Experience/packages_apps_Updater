@@ -75,7 +75,6 @@ import com.androidone.ota.controller.UpdaterService.LocalBinder
 import com.androidone.ota.download.DownloadClient
 import com.androidone.ota.misc.Constants
 import com.androidone.ota.misc.StringGenerator.getDateLocalized
-import com.androidone.ota.misc.StringGenerator.getDateLocalizedUTC
 import com.androidone.ota.misc.StringGenerator.getTimeLocalized
 import com.androidone.ota.misc.Utils.canInstall
 import com.androidone.ota.misc.Utils.checkForNewUpdates
@@ -1094,12 +1093,12 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
                 Log.e(TAG, "Could not determine the type of the update")
             }
 
-        val buildDate: String = getDateLocalizedUTC(this, DateFormat.MEDIUM, update.timestamp)
-        val buildInfoText: String =
-            getString(R.string.list_build_version_date, update.version, buildDate)
+        val updateLabel: String =
+            update.name.takeUnless { it.isNullOrBlank() }
+                ?: getString(R.string.system_update_label)
         return MaterialAlertDialogBuilder(this)
             .setTitle(R.string.apply_update_dialog_title)
-            .setMessage(getString(resId, buildInfoText, getString(android.R.string.ok)))
+            .setMessage(getString(resId, updateLabel, getString(android.R.string.ok)))
             .setPositiveButton(android.R.string.ok) { _: DialogInterface?, _: Int ->
                 triggerUpdate(this, downloadId)
             }

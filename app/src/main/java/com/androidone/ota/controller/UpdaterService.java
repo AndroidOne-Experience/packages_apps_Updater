@@ -49,7 +49,6 @@ import com.androidone.ota.model.UpdateInfo;
 import com.androidone.ota.model.UpdateStatus;
 
 import java.io.IOException;
-import java.text.DateFormat;
 import java.text.NumberFormat;
 
 public class UpdaterService extends Service {
@@ -636,12 +635,12 @@ public class UpdaterService extends Service {
     }
 
     private void setNotificationTitle(UpdateInfo update) {
-        String buildDate =
-                StringGenerator.getDateLocalizedUTC(this, DateFormat.MEDIUM, update.getTimestamp());
-        String buildInfo =
-                getString(R.string.list_build_version_date, update.getVersion(), buildDate);
-        mNotificationStyle.setBigContentTitle(buildInfo);
-        mNotificationBuilder.setContentTitle(buildInfo);
+        String title = update.getName();
+        if (title == null || title.isEmpty()) {
+            title = getString(R.string.system_update_label);
+        }
+        mNotificationStyle.setBigContentTitle(title);
+        mNotificationBuilder.setContentTitle(title);
     }
 
     private PendingIntent getResumePendingIntent(String downloadId) {
