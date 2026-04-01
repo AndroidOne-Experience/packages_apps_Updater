@@ -21,6 +21,7 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.DialogInterface
+import android.content.res.ColorStateList
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
@@ -34,9 +35,11 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.text.TextUtils
 import android.text.format.Formatter
 import android.util.Log
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -44,13 +47,13 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
+import androidx.core.widget.TextViewCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.preference.PreferenceManager
@@ -98,6 +101,7 @@ import java.text.NumberFormat
 import java.util.UUID
 
 class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
+    private val mMarkwon by lazy { Markwon.create(this) }
     private val mBottomAppBar by lazy { requireViewById<BottomAppBar>(R.id.bottomAppBar) }
     private val mCircularProgress by lazy {
         requireViewById<CircularProgressIndicator>(R.id.updateRefreshProgress)
@@ -131,6 +135,12 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
     private var mBroadcastReceiver: BroadcastReceiver
     private var mLatestDownloadId: String
     private var mUpdateImporter: UpdateImporter
+    private var mChangelogRequestId = 0
+    private var mIsImportingLocalUpdate = false
+    private var mLocalImportProgress = 0
+    private var mVisibleBeforeLocalImport = ""
+    private var mDefaultUpdateStatusTextSizePx = 0f
+    private var mDefaultUpdateStatusTextColors: ColorStateList? = null
 
     private var mUpdaterController: UpdaterController? = null
     private var mUpdaterService: UpdaterService? = null
@@ -154,6 +164,12 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
                     } else if (UpdaterController.ACTION_UPDATE_REMOVED == intent.action) {
                         removeUpdate(downloadId!!)
                         downloadUpdatesList(false)
+                    } else if (UpdaterService.ACTION_LOCAL_IMPORT_PROGRESS == intent.action) {
+                        onImportProgress(intent.getIntExtra(UpdaterService.EXTRA_IMPORT_PROGRESS, 0))
+                    } else if (UpdaterService.ACTION_LOCAL_IMPORT_FINISHED == intent.action) {
+                        handleLocalImportFinished(
+                            intent.getBooleanExtra(UpdaterService.EXTRA_IMPORT_SUCCESS, false)
+                        )
                     }
                 }
             }
@@ -168,6 +184,10 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
                 mUpdaterService = binder.service
                 mUpdaterService?.let { updaterService ->
                     mUpdaterController = updaterService.updaterController
+                    if (updaterService.isImportingLocalUpdate) {
+                        mIsImportingLocalUpdate = true
+                        mLocalImportProgress = updaterService.localImportProgress
+                    }
                 }
                 updatesList
             }
@@ -177,8 +197,6 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
                 mUpdaterController = null
             }
         }
-
-    private var importDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -192,6 +210,8 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
 
 
         setupHeaderProperties()
+        mDefaultUpdateStatusTextSizePx = mUpdateStatus.textSize
+        mDefaultUpdateStatusTextColors = mUpdateStatus.textColors
         updateLastCheckedString()
 
         setupSwipeRefresh()
@@ -253,16 +273,12 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
         intentFilter.addAction(UpdaterController.ACTION_DOWNLOAD_PROGRESS)
         intentFilter.addAction(UpdaterController.ACTION_INSTALL_PROGRESS)
         intentFilter.addAction(UpdaterController.ACTION_UPDATE_REMOVED)
+        intentFilter.addAction(UpdaterService.ACTION_LOCAL_IMPORT_PROGRESS)
+        intentFilter.addAction(UpdaterService.ACTION_LOCAL_IMPORT_FINISHED)
         LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, intentFilter)
     }
 
     override fun onPause() {
-        if (importDialog != null) {
-            importDialog!!.dismiss()
-            importDialog = null
-            mUpdateImporter.stopImport()
-        }
-
         super.onPause()
     }
 
@@ -309,27 +325,30 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
     }
 
     override fun onImportStarted() {
-        if (importDialog != null && importDialog!!.isShowing) {
-            importDialog!!.dismiss()
-        }
+        mVisibleBeforeLocalImport = mLatestDownloadId
+        mIsImportingLocalUpdate = true
+        mLocalImportProgress = 0
+        updateUI("")
+    }
 
-        importDialog =
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.local_update_import)
-                .setView(R.layout.progress_dialog)
-                .setCancelable(false)
-                .create()
-
-        importDialog!!.show()
+    override fun onImportProgress(progress: Int) {
+        mIsImportingLocalUpdate = true
+        mLocalImportProgress = progress
+        updateUI("")
     }
 
     override fun onImportCompleted(update: Update?) {
-        if (importDialog != null) {
-            importDialog!!.dismiss()
-            importDialog = null
-        }
+        handleLocalImportFinished(update != null)
+    }
 
-        if (update == null) {
+    private fun handleLocalImportFinished(success: Boolean) {
+        mIsImportingLocalUpdate = false
+        mLocalImportProgress = 0
+
+        if (!success) {
+            val restoreDownloadId = mVisibleBeforeLocalImport
+            mVisibleBeforeLocalImport = ""
+            updateUI(restoreDownloadId)
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.local_update_import)
                 .setMessage(R.string.local_update_import_failure)
@@ -338,25 +357,8 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             return
         }
 
-        // Update UI before showing the dialog to avoid race condition
-        // where progress updates arrive before the UI is ready
-        updateUI(update.downloadId)
-
-        val deleteUpdate = Runnable {
-            UpdaterController.getInstance(this).deleteUpdate(update.downloadId)
-        }
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.local_update_import)
-            .setMessage(getString(R.string.local_update_import_success, update.version))
-            .setPositiveButton(R.string.local_update_import_install) { _: DialogInterface?, _: Int ->
-                triggerUpdate(this, update.downloadId)
-            }
-            .setNegativeButton(android.R.string.cancel) { _: DialogInterface?, _: Int ->
-                deleteUpdate.run()
-            }
-            .setOnCancelListener { deleteUpdate.run() }
-            .show()
+        mVisibleBeforeLocalImport = ""
+        updateUI(Update.LOCAL_ID)
     }
 
     private fun startRefreshAnimation() {
@@ -436,8 +438,17 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
                 clickListener =
                     if (enabled)
                         View.OnClickListener { _: View? ->
-                            if (canInstall(mUpdaterController!!.getUpdate(mLatestDownloadId))) {
-                                getInstallDialog(mLatestDownloadId).show()
+                            val update = mUpdaterController!!.getUpdate(mLatestDownloadId)
+                            if (isLocalUpdate(update.downloadId) || canInstall(update)) {
+                                if (
+                                    isLocalUpdate(update.downloadId) &&
+                                        isBatteryLevelOk &&
+                                        !isScratchMounted
+                                ) {
+                                    triggerUpdate(this, update.downloadId)
+                                } else {
+                                    getInstallDialog(mLatestDownloadId).show()
+                                }
                             } else {
                                 showUpdateInfo(R.string.snack_update_not_installable)
                             }
@@ -446,7 +457,13 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             }
 
             Action.DELETE -> {
-                button.setText(R.string.action_delete)
+                button.setText(
+                    if (isLocalUpdate(mLatestDownloadId)) {
+                        R.string.action_delete_local_update
+                    } else {
+                        R.string.action_delete
+                    },
+                )
                 button.isEnabled = enabled
                 clickListener =
                     if (enabled)
@@ -497,7 +514,6 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             if (newUpdates) {
                 mUpdateStatus.setText(R.string.system_update_available)
                 mCurrentBuildInfo.isVisible = false
-                setChangelogs(mChangelogSection)
             } else {
                 mUpdateStatus.setText(R.string.system_up_to_date)
                 mCurrentBuildInfo.isVisible = true
@@ -619,9 +635,23 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
         downloadClient.start()
     }
 
-    private fun setChangelogs(mShowChangelogs: TextView) {
-        mShowChangelogs.isVisible = true
+    private fun bindChangelogSection(update: UpdateInfo) {
+        ++mChangelogRequestId
+        if (isLocalUpdate(update.downloadId)) {
+            mChangelogSection.isVisible = false
+            mChangelogSection.text = ""
+            return
+        }
+
+        if (!update.availableOnline) {
+            mChangelogSection.isVisible = false
+            mChangelogSection.text = ""
+            return
+        }
+
+        val requestId = mChangelogRequestId
         val changelogUrl = getChangelogURL(this)
+        mChangelogSection.isVisible = true
 
         lifecycleScope.launch {
             val markdown =
@@ -646,9 +676,101 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
                     }
                 }
 
-            val markwon = Markwon.create(this@UpdatesActivity)
-            markwon.setMarkdown(mShowChangelogs, markdown)
+            if (requestId != mChangelogRequestId) {
+                return@launch
+            }
+
+            mMarkwon.setMarkdown(mChangelogSection, markdown)
         }
+    }
+
+    private fun applyUpdateStatusStyle(
+        compact: Boolean,
+        compactMinSp: Float = 20f,
+        compactMaxSp: Float = 56f,
+        singleLine: Boolean = true,
+        compactMaxLines: Int = 1,
+        compactEllipsize: TextUtils.TruncateAt? = TextUtils.TruncateAt.END,
+    ) {
+        val layoutParams = mUpdateStatus.layoutParams as LinearLayout.LayoutParams
+        if (compact) {
+            val fontScale = resources.configuration.fontScale.coerceAtLeast(1f)
+            val compactMinTextSizePx =
+                (
+                    TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_SP,
+                        compactMinSp,
+                        resources.displayMetrics,
+                    ) / fontScale
+                ).toInt()
+            val compactMaxTextSizePx =
+                (
+                    TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_SP,
+                        compactMaxSp,
+                        resources.displayMetrics,
+                    ) / fontScale
+                ).toInt()
+            mDefaultUpdateStatusTextColors?.let { mUpdateStatus.setTextColor(it) }
+            layoutParams.width = LinearLayout.LayoutParams.MATCH_PARENT
+            mUpdateStatus.layoutParams = layoutParams
+            mUpdateStatus.gravity = Gravity.CENTER_HORIZONTAL
+            mUpdateStatus.textAlignment = View.TEXT_ALIGNMENT_CENTER
+            mUpdateStatus.setSingleLine(singleLine)
+            mUpdateStatus.maxLines = compactMaxLines
+            mUpdateStatus.ellipsize = compactEllipsize
+            TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                mUpdateStatus,
+                compactMinTextSizePx,
+                compactMaxTextSizePx,
+                1,
+                TypedValue.COMPLEX_UNIT_PX,
+            )
+        } else {
+            mDefaultUpdateStatusTextColors?.let { mUpdateStatus.setTextColor(it) }
+            layoutParams.width = LinearLayout.LayoutParams.WRAP_CONTENT
+            mUpdateStatus.layoutParams = layoutParams
+            mUpdateStatus.gravity = Gravity.START
+            mUpdateStatus.textAlignment = View.TEXT_ALIGNMENT_INHERIT
+            TextViewCompat.setAutoSizeTextTypeWithDefaults(
+                mUpdateStatus,
+                TextView.AUTO_SIZE_TEXT_TYPE_NONE,
+            )
+            mUpdateStatus.setTextSize(TypedValue.COMPLEX_UNIT_PX, mDefaultUpdateStatusTextSizePx)
+            mUpdateStatus.setSingleLine(false)
+            mUpdateStatus.maxLines = Int.MAX_VALUE
+            mUpdateStatus.ellipsize = null
+        }
+    }
+
+    private fun showLocalImportUi() {
+        ++mChangelogRequestId
+        applyUpdateStatusStyle(true)
+        mUpdateStatus.setText(R.string.local_update_import)
+        mUpdateIcon.setImageResource(R.drawable.ic_system_update)
+        mCurrentBuildInfo.isVisible = false
+        mUpdateInfoWarning.isVisible = false
+        mChangelogSection.isVisible = false
+        mWarnMeteredConnectionCard.isVisible = false
+        mProgress.isVisible = true
+        mProgressText.setText(R.string.local_update_import_progress)
+        mProgressBar.isIndeterminate = mLocalImportProgress < 0
+        if (mLocalImportProgress >= 0) {
+            mProgressBar.progress = mLocalImportProgress
+            mProgressPercent.isVisible = true
+            mProgressPercent.text =
+                NumberFormat.getPercentInstance().format((mLocalImportProgress / 100f).toDouble())
+        } else {
+            mProgressPercent.isVisible = false
+            mProgressPercent.text = ""
+        }
+        mSecondaryActionButton.isVisible = false
+        mPrimaryActionButton.isVisible = false
+        mBottomAppBar.isVisible = false
+        mSwipeRefresh.isEnabled = false
+        mUpdateStatusLayout.isVisible = true
+        mCircularProgress.isVisible = false
+        mCircularProgressContainer.isVisible = false
     }
 
     private fun updateLastCheckedString() {
@@ -692,13 +814,28 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
     }
 
     private fun updateUI(downloadId: String) {
+        if (mIsImportingLocalUpdate) {
+            showLocalImportUi()
+            return
+        }
+
         val resolvedDownloadId = resolveVisibleUpdate(downloadId)
         if (resolvedDownloadId.isEmpty()) {
+            ++mChangelogRequestId
+            applyUpdateStatusStyle(false)
             mLatestDownloadId = ""
             setupButtonAction(Action.CHECK_UPDATES, mPrimaryActionButton, true)
             mUpdateIcon.setImageResource(R.drawable.ic_system_update)
             mUpdateStatus.setText(R.string.system_up_to_date)
             mCurrentBuildInfo.isVisible = true
+            mUpdateInfoWarning.isVisible = false
+            mProgress.isVisible = false
+            mChangelogSection.isVisible = false
+            mWarnMeteredConnectionCard.isVisible = false
+            mSecondaryActionButton.isVisible = false
+            mPrimaryActionButton.isVisible = true
+            mBottomAppBar.isVisible = true
+            mUpdateStatusLayout.isVisible = true
             mSwipeRefresh.isEnabled = false
             return
         }
@@ -709,16 +846,25 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             return
         }
 
-        mUpdateStatus.setText(R.string.system_update_available)
+        applyUpdateStatusStyle(isLocalUpdate(update.downloadId))
+        mBottomAppBar.isVisible = true
+        mUpdateStatusLayout.isVisible = true
+        mUpdateStatus.setText(
+            if (isLocalUpdate(update.downloadId)) {
+                R.string.local_update_import
+            } else {
+                R.string.system_update_available
+            },
+        )
         mProgress.isVisible = false
         mCurrentBuildInfo.isVisible = false
-        setChangelogs(mChangelogSection)
+        bindChangelogSection(update)
 
         val activeLayout: Boolean =
             update.persistentStatus == UpdateStatus.Persistent.INCOMPLETE ||
                     update.status == UpdateStatus.STARTING ||
                     update.status == UpdateStatus.INSTALLING ||
-                    mUpdaterController!!.isVerifyingUpdate
+                    mUpdaterController!!.isVerifyingUpdate(update.downloadId)
 
         if (activeLayout) {
             handleActiveStatus(update)
@@ -760,6 +906,7 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
         var showCancelButton = false
         var canDelete = false
         val downloadId: String = update.downloadId
+        mPrimaryActionButton.isVisible = true
         if (mUpdaterController!!.isDownloading(downloadId)) {
             showCancelButton = true
             canDelete = true
@@ -785,7 +932,16 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             if (Update.LOCAL_ID == update.downloadId) {
                 mChangelogSection.isVisible = false
                 mWarnMeteredConnectionCard.isVisible = false
-                mUpdateStatus.setText(R.string.local_update_installing)
+                mUpdateStatus.setText(R.string.system_update_installing)
+                applyUpdateStatusStyle(
+                    compact = true,
+                    compactMinSp = 10f,
+                    compactMaxSp = 32f,
+                    singleLine = false,
+                    compactMaxLines = 2,
+                    compactEllipsize = null,
+                )
+                mUpdateStatus.requestLayout()
                 showCancelButton = false
             }
             mProgressText.setText(
@@ -833,6 +989,8 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
     private fun handleNotActiveStatus(update: UpdateInfo) {
         val downloadId: String = update.downloadId
         var showCancelButton = false
+        mPrimaryActionButton.isVisible = true
+        mWarnMeteredConnectionCard.isVisible = false
         if (mUpdaterController!!.isWaitingForReboot(downloadId)) {
             mUpdateIcon.setImageResource(R.drawable.ic_system_update_success)
             mUpdateStatus.setText(R.string.installing_update_finished)
@@ -841,8 +999,9 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             mPrimaryActionButton.isVisible = true
         } else if (update.persistentStatus == UpdateStatus.Persistent.VERIFIED) {
             showCancelButton = true
-            if (canInstall(update)) {
+            if (isLocalUpdate(update.downloadId) || canInstall(update)) {
                 setupButtonAction(Action.INSTALL, mPrimaryActionButton, !isBusy)
+                setupButtonAction(Action.DELETE, mSecondaryActionButton, !isBusy)
             } else {
                 mPrimaryActionButton.isVisible = false
                 setupButtonAction(Action.DELETE, mSecondaryActionButton, !isBusy)
@@ -874,10 +1033,24 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
         mUpdateInfoWarning.setText(stringId)
     }
 
+    private fun isLocalUpdate(downloadId: String?): Boolean = downloadId == Update.LOCAL_ID
+
     private fun getDeleteDialog(downloadId: String): MaterialAlertDialogBuilder {
+        val title =
+            if (isLocalUpdate(downloadId)) {
+                R.string.confirm_delete_local_update_dialog_title
+            } else {
+                R.string.confirm_delete_dialog_title
+            }
+        val message =
+            if (isLocalUpdate(downloadId)) {
+                R.string.confirm_delete_local_update_dialog_message
+            } else {
+                R.string.confirm_delete_dialog_message
+            }
         return MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.confirm_delete_dialog_title)
-            .setMessage(R.string.confirm_delete_dialog_message)
+            .setTitle(title)
+            .setMessage(message)
             .setPositiveButton(android.R.string.ok) { _: DialogInterface?, _: Int ->
                 mWarnMeteredConnectionCard.isVisible = false
                 mUpdaterController!!.pauseDownload(downloadId)

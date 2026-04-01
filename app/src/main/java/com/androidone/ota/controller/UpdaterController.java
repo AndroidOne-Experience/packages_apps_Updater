@@ -488,7 +488,11 @@ public class UpdaterController {
             deleteUpdateAsync(update);
 
             final boolean isLocalUpdate = Update.LOCAL_ID.equals(downloadId);
-            if (!isLocalUpdate && !update.getAvailableOnline()) {
+            if (isLocalUpdate) {
+                Log.d(TAG, "Local update deleted, removing entry");
+                mDownloads.remove(downloadId);
+                notifyUpdateDelete(downloadId);
+            } else if (!update.getAvailableOnline()) {
                 Log.d(TAG, "Download no longer available online, removing");
                 mDownloads.remove(downloadId);
                 notifyUpdateDelete(downloadId);
