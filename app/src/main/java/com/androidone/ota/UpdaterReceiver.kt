@@ -28,8 +28,6 @@ import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
 import com.androidone.ota.controller.UpdaterService
 import com.androidone.ota.misc.Constants
-import com.androidone.ota.misc.StringGenerator.getDateLocalizedUTC
-import java.text.DateFormat
 
 class UpdaterReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -77,20 +75,7 @@ class UpdaterReceiver : BroadcastReceiver() {
         }
 
         private fun showUpdateFailedNotification(context: Context) {
-            val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-            val buildDate =
-                getDateLocalizedUTC(
-                    context,
-                    DateFormat.MEDIUM,
-                    preferences.getLong(Constants.PREF_INSTALL_NEW_TIMESTAMP, 0),
-                )
-
-            val buildInfo =
-                context.getString(
-                    R.string.list_build_version_date,
-                    SystemProperties.get(Constants.PROP_BUILD_VERSION),
-                    buildDate,
-                )
+            val buildInfo = context.getString(R.string.system_update_label)
 
             val notificationIntent = Intent(context, UpdatesActivity::class.java)
             val intent =

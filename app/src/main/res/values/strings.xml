@@ -16,7 +16,7 @@
      limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="app_name">Updater</string>
+    <string name="app_name">System update</string>
     <string name="display_name">Updater</string>
 
     <!-- Directory where the update files will be downloaded and stored.
@@ -86,7 +86,6 @@
     <string name="header_android_security_patch">Android security update: <xliff:g example="1" id="patch">%1$s</xliff:g></string>
     <string name="header_last_updates_check">Last successful check for update:\n<xliff:g example="1 January 1970" id="date">%1$s</xliff:g> (<xliff:g example="01:23" id="time">%2$s</xliff:g>)</string>
 
-    <string name="list_build_version_date">AndroidOne Experience <xliff:g example="15" id="version">%1$s</xliff:g> - <xliff:g example="July 11, 2017" id="date">%2$s</xliff:g></string>
     <string name="list_download_progress_newer"><xliff:g example="12.2" id="filesize_without_unit">%1$s</xliff:g> of <xliff:g example="310 MB" id="filesize_without_unit">%2$s</xliff:g></string>
     <string name="list_verifying_update">Verifying update</string>
 
@@ -139,6 +138,7 @@
 
     <string name="check_for_update">Check for update</string>
     <string name="check_for_update_failed">Failed to check for update</string>
+    <string name="system_update_label">System update</string>
     <string name="system_up_to_date">Your system is up to date</string>
     <string name="system_update_available">System update available</string>
 
