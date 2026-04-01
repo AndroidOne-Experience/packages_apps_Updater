@@ -506,14 +506,7 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             }
         }
 
-        val sortedUpdates: List<UpdateInfo> = controller.updates
-        if (sortedUpdates.isEmpty()) {
-            updateUI("")
-        } else {
-            sortedUpdates.sortedByDescending { it.timestamp }
-            mLatestDownloadId = sortedUpdates[0].downloadId
-            updateUI(mLatestDownloadId)
-        }
+        updateUI("")
     }
 
     private val updatesList: Unit
@@ -699,7 +692,9 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
     }
 
     private fun updateUI(downloadId: String) {
-        if (mLatestDownloadId.isEmpty()) {
+        val resolvedDownloadId = resolveVisibleUpdate(downloadId)
+        if (resolvedDownloadId.isEmpty()) {
+            mLatestDownloadId = ""
             setupButtonAction(Action.CHECK_UPDATES, mPrimaryActionButton, true)
             mUpdateIcon.setImageResource(R.drawable.ic_system_update)
             mUpdateStatus.setText(R.string.system_up_to_date)
@@ -708,7 +703,11 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             return
         }
 
-        val update: UpdateInfo = mUpdaterController!!.getUpdate(downloadId) ?: return
+        val update: UpdateInfo = mUpdaterController!!.getUpdate(resolvedDownloadId) ?: run {
+            mLatestDownloadId = ""
+            updateUI("")
+            return
+        }
 
         mUpdateStatus.setText(R.string.system_update_available)
         mProgress.isVisible = false
@@ -727,7 +726,34 @@ class UpdatesActivity : AppCompatActivity(), UpdateImporter.Callbacks {
             handleNotActiveStatus(update)
         }
 
-        mLatestDownloadId = downloadId
+        mLatestDownloadId = resolvedDownloadId
+    }
+
+    private fun resolveVisibleUpdate(downloadId: String): String {
+        val controller = mUpdaterController ?: return ""
+
+        if (downloadId.isNotEmpty() && controller.getUpdate(downloadId) != null) {
+            return downloadId
+        }
+
+        if (mLatestDownloadId.isNotEmpty() && controller.getUpdate(mLatestDownloadId) != null) {
+            return mLatestDownloadId
+        }
+
+        return controller.updates
+            .sortedWith(
+                compareByDescending<UpdateInfo> { update ->
+                    controller.isInstallingUpdate(update.downloadId) ||
+                        controller.isDownloading(update.downloadId) ||
+                        controller.isVerifyingUpdate(update.downloadId) ||
+                        controller.isWaitingForReboot(update.downloadId) ||
+                        update.status == UpdateStatus.STARTING ||
+                        update.status == UpdateStatus.INSTALLING ||
+                        update.persistentStatus == UpdateStatus.Persistent.INCOMPLETE
+                }.thenByDescending { update -> update.timestamp },
+            ).firstOrNull()
+            ?.downloadId
+            .orEmpty()
     }
 
     private fun handleActiveStatus(update: UpdateInfo) {
