@@ -97,9 +97,12 @@
     <string name="action_install">Install</string>
     <string name="action_delete">Cancel</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_delete_local_update">Delete</string>
 
     <string name="confirm_delete_dialog_title">Delete file</string>
     <string name="confirm_delete_dialog_message">Delete the current downloading file?</string>
+    <string name="confirm_delete_local_update_dialog_title">Delete local update</string>
+    <string name="confirm_delete_local_update_dialog_message">Delete the imported local update package?</string>
 
     <string name="apply_update_dialog_title">Apply update</string>
     <string name="apply_update_dialog_message">You are about to install <xliff:g id="update_name">%1$s</xliff:g>.\n\nIf you press <xliff:g id="ok">%2$s</xliff:g>, the device will restart itself in recovery mode to install the update.\n\nNote: This feature requires a compatible Recovery or updates will need to be installed manually.</string>
@@ -129,7 +132,7 @@
     <string name="update_failed_channel_title">Update failed</string>
 
     <string name="local_update_import">Local update</string>
-    <string name="local_update_import_progress">Importing local update\u2026</string>
+    <string name="local_update_import_progress">Importing local update package\u2026</string>
     <string name="local_update_import_success">%1$s has been imported. Do you want to install it?</string>
     <string name="local_update_import_failure">Failed to import local update</string>
     <string name="local_update_import_install">Install</string>

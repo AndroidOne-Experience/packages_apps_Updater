@@ -26,6 +26,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
+import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -37,6 +38,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.PreferenceManager;
 
 import com.androidone.ota.R;
+import com.androidone.ota.UpdateImporter;
 import com.androidone.ota.UpdaterReceiver;
 import com.androidone.ota.UpdatesActivity;
 import com.androidone.ota.misc.Constants;
@@ -59,11 +61,18 @@ public class UpdaterService extends Service {
     public static final String ACTION_INSTALL_STOP = "action_install_stop";
     public static final String ACTION_INSTALL_SUSPEND = "action_install_suspend";
     public static final String ACTION_INSTALL_RESUME = "action_install_resume";
+    public static final String ACTION_IMPORT_LOCAL_UPDATE = "action_import_local_update";
+    public static final String ACTION_IMPORT_STOP = "action_import_stop";
+    public static final String ACTION_LOCAL_IMPORT_PROGRESS = "action_local_import_progress";
+    public static final String ACTION_LOCAL_IMPORT_FINISHED = "action_local_import_finished";
 
     public static final String ACTION_POST_REBOOT_CLEANUP = "action_post_reboot_cleanup";
 
     public static final int DOWNLOAD_RESUME = 0;
     public static final int DOWNLOAD_PAUSE = 1;
+    public static final String EXTRA_IMPORT_URI = "extra_import_uri";
+    public static final String EXTRA_IMPORT_PROGRESS = "extra_import_progress";
+    public static final String EXTRA_IMPORT_SUCCESS = "extra_import_success";
     private static final String TAG = "UpdaterService";
     private static final String ONGOING_NOTIFICATION_CHANNEL = "ongoing_notification_channel";
     private static final int NOTIFICATION_ID = 10;
@@ -77,6 +86,9 @@ public class UpdaterService extends Service {
     private NotificationCompat.BigTextStyle mNotificationStyle;
 
     private UpdaterController mUpdaterController;
+    private volatile boolean mIsImportingLocalUpdate;
+    private volatile int mLocalImportProgress;
+    private Thread mImportThread;
 
     @Override
     public void onCreate() {
@@ -249,6 +261,15 @@ public class UpdaterService extends Service {
                 installer.reconnect();
                 installer.resume();
             }
+        } else if (ACTION_IMPORT_LOCAL_UPDATE.equals(intent.getAction())) {
+            String importUri = intent.getStringExtra(EXTRA_IMPORT_URI);
+            if (importUri == null) {
+                Log.e(TAG, "Missing local update import URI");
+                return START_NOT_STICKY;
+            }
+            startLocalImport(Uri.parse(importUri));
+        } else if (ACTION_IMPORT_STOP.equals(intent.getAction())) {
+            stopLocalImport();
         }
         return ABUpdateInstaller.isInstallingUpdate(this) ? START_STICKY : START_NOT_STICKY;
     }
@@ -257,13 +278,116 @@ public class UpdaterService extends Service {
         return mUpdaterController;
     }
 
+    public boolean isImportingLocalUpdate() {
+        return mIsImportingLocalUpdate;
+    }
+
+    public int getLocalImportProgress() {
+        return mLocalImportProgress;
+    }
+
     private void tryStopSelf() {
         if (!mHasClients
                 && !mUpdaterController.hasActiveDownloads()
-                && !mUpdaterController.isInstallingUpdate()) {
+                && !mUpdaterController.isInstallingUpdate()
+                && !mIsImportingLocalUpdate) {
             Log.d(TAG, "Service no longer needed, stopping");
             stopSelf();
         }
+    }
+
+    private void startLocalImport(Uri uri) {
+        if (mIsImportingLocalUpdate) {
+            Log.d(TAG, "Local update import already in progress");
+            return;
+        }
+
+        mIsImportingLocalUpdate = true;
+        mLocalImportProgress = 0;
+        notifyLocalImportProgress(0);
+        updateLocalImportNotification(0);
+
+        mImportThread =
+                new Thread(
+                        () -> {
+                            boolean success = false;
+                            try {
+                                Update update =
+                                        UpdateImporter.importUpdate(
+                                                this,
+                                                uri,
+                                                progress -> {
+                                                    mLocalImportProgress = progress;
+                                                    notifyLocalImportProgress(progress);
+                                                    updateLocalImportNotification(progress);
+                                                });
+                                mUpdaterController.addUpdate(update, false);
+                                success = true;
+                            } catch (Exception e) {
+                                Log.e(TAG, "Failed to import local update", e);
+                            } finally {
+                                try {
+                                    getContentResolver()
+                                            .releasePersistableUriPermission(
+                                                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                } catch (SecurityException e) {
+                                    Log.w(TAG, "Could not release local update URI permission", e);
+                                }
+
+                                mIsImportingLocalUpdate = false;
+                                mLocalImportProgress = 0;
+                                mImportThread = null;
+                                stopForeground(STOP_FOREGROUND_DETACH);
+                                mNotificationManager.cancel(NOTIFICATION_ID);
+                                notifyLocalImportFinished(success);
+                                tryStopSelf();
+                            }
+                        });
+        mImportThread.start();
+    }
+
+    private void stopLocalImport() {
+        if (mImportThread != null && mImportThread.isAlive()) {
+            mImportThread.interrupt();
+        }
+    }
+
+    @SuppressLint("RestrictedApi")
+    private void updateLocalImportNotification(int progress) {
+        String title = getString(R.string.local_update_import);
+        String text = getString(R.string.local_update_import_progress);
+        mNotificationBuilder.mActions.clear();
+        mNotificationBuilder.setContentTitle(title);
+        mNotificationBuilder.setContentText(text);
+        mNotificationBuilder.setStyle(mNotificationStyle);
+        mNotificationBuilder.setSmallIcon(R.drawable.ic_system_update);
+        mNotificationBuilder.setProgress(100, progress, false);
+        mNotificationStyle.setBigContentTitle(title);
+        mNotificationStyle.setSummaryText(
+                NumberFormat.getPercentInstance().format(progress / 100.f));
+        mNotificationStyle.bigText(text);
+        mNotificationBuilder.setTicker(text);
+        mNotificationBuilder.setOngoing(true);
+        mNotificationBuilder.setAutoCancel(false);
+        if (progress <= 0) {
+            startForeground(
+                    NOTIFICATION_ID,
+                    mNotificationBuilder.build(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        }
+        mNotificationManager.notify(NOTIFICATION_ID, mNotificationBuilder.build());
+    }
+
+    private void notifyLocalImportProgress(int progress) {
+        Intent intent = new Intent(ACTION_LOCAL_IMPORT_PROGRESS);
+        intent.putExtra(EXTRA_IMPORT_PROGRESS, progress);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+    }
+
+    private void notifyLocalImportFinished(boolean success) {
+        Intent intent = new Intent(ACTION_LOCAL_IMPORT_FINISHED);
+        intent.putExtra(EXTRA_IMPORT_SUCCESS, success);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
     @SuppressLint("RestrictedApi")
