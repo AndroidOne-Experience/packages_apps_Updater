@@ -94,13 +94,26 @@ class UpdateInstaller {
             // the filesystem, so create a copy of it.
             prepareForUncryptAndInstall(update);
         } else {
-            installPackage(update.getFile(), downloadId);
+            prepareForInstall(update);
         }
     }
 
-    private void installPackage(File update, String downloadId) {
+    private void installPackage(
+            File updateToProcess, File updateToInstall, String downloadId) {
         try {
-            android.os.RecoverySystem.installPackage(mContext, update);
+            android.os.RecoverySystem.processPackage(
+                    mContext,
+                    updateToProcess,
+                    new android.os.RecoverySystem.ProgressListener() {
+                        @Override
+                        public void onProgress(int progress) {
+                            mUpdaterController
+                                    .getActualUpdate(downloadId)
+                                    .setInstallProgress(progress);
+                            mUpdaterController.notifyInstallProgress(downloadId);
+                        }
+                    });
+            android.os.RecoverySystem.installPackage(mContext, updateToInstall, true);
         } catch (IOException e) {
             Log.e(TAG, "Could not install update", e);
             mUpdaterController
@@ -108,6 +121,36 @@ class UpdateInstaller {
                     .setStatus(UpdateStatus.INSTALLATION_FAILED);
             mUpdaterController.notifyUpdateChange(downloadId);
         }
+    }
+
+    private synchronized void prepareForInstall(UpdateInfo update) {
+        Runnable installUpdateRunnable =
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            installPackage(
+                                    update.getFile(), update.getFile(), update.getDownloadId());
+                        } finally {
+                            synchronized (UpdateInstaller.this) {
+                                mCanCancel = false;
+                                mPrepareUpdateThread = null;
+                                sInstallingUpdate = null;
+                            }
+                            mUpdaterController.notifyUpdateChange(update.getDownloadId());
+                        }
+                    }
+                };
+
+        mPrepareUpdateThread = new Thread(installUpdateRunnable);
+        mPrepareUpdateThread.start();
+        sInstallingUpdate = update.getDownloadId();
+        mCanCancel = false;
+
+        mUpdaterController
+                .getActualUpdate(update.getDownloadId())
+                .setStatus(UpdateStatus.INSTALLING);
+        mUpdaterController.notifyUpdateChange(update.getDownloadId());
     }
 
     private synchronized void prepareForUncryptAndInstall(UpdateInfo update) {
@@ -160,7 +203,11 @@ class UpdateInstaller {
                                 //noinspection ResultOfMethodCallIgnored
                                 uncryptFile.delete();
                             } else {
-                                installPackage(uncryptFile, update.getDownloadId());
+                                // Use the copied file for block map generation, but keep the
+                                // original package for installPackage() so framework can still
+                                // inspect the intact OTA zip before reboot.
+                                installPackage(
+                                        uncryptFile, update.getFile(), update.getDownloadId());
                             }
                         } catch (IOException e) {
                             Log.e(TAG, "Could not copy update", e);
