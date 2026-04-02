@@ -336,8 +336,7 @@ public class UpdaterService extends Service {
                                 mIsImportingLocalUpdate = false;
                                 mLocalImportProgress = 0;
                                 mImportThread = null;
-                                stopForeground(STOP_FOREGROUND_DETACH);
-                                mNotificationManager.cancel(NOTIFICATION_ID);
+                                clearNotification();
                                 notifyLocalImportFinished(success);
                                 tryStopSelf();
                             }
@@ -353,6 +352,9 @@ public class UpdaterService extends Service {
 
     @SuppressLint("RestrictedApi")
     private void updateLocalImportNotification(int progress) {
+        // Keep copy progress below 100% until the import has fully finished, so the
+        // notification does not sit at a completed state while package verification runs.
+        int visibleProgress = Math.max(0, Math.min(progress, 99));
         String title = getString(R.string.local_update_import);
         String text = getString(R.string.local_update_import_progress);
         mNotificationBuilder.mActions.clear();
@@ -360,10 +362,10 @@ public class UpdaterService extends Service {
         mNotificationBuilder.setContentText(text);
         mNotificationBuilder.setStyle(mNotificationStyle);
         mNotificationBuilder.setSmallIcon(R.drawable.ic_system_update);
-        mNotificationBuilder.setProgress(100, progress, false);
+        mNotificationBuilder.setProgress(100, visibleProgress, false);
         mNotificationStyle.setBigContentTitle(title);
         mNotificationStyle.setSummaryText(
-                NumberFormat.getPercentInstance().format(progress / 100.f));
+                NumberFormat.getPercentInstance().format(visibleProgress / 100.f));
         mNotificationStyle.bigText(text);
         mNotificationBuilder.setTicker(text);
         mNotificationBuilder.setOngoing(true);
@@ -389,13 +391,23 @@ public class UpdaterService extends Service {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
+    private void clearNotification() {
+        mNotificationBuilder.mActions.clear();
+        mNotificationBuilder.setStyle(null);
+        mNotificationBuilder.setProgress(0, 0, false);
+        mNotificationBuilder.setTicker(null);
+        mNotificationBuilder.setOngoing(false);
+        mNotificationBuilder.setAutoCancel(false);
+        mNotificationBuilder.setExtras(null);
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        mNotificationManager.cancel(NOTIFICATION_ID);
+    }
+
     @SuppressLint("RestrictedApi")
     private void handleUpdateStatusChange(UpdateInfo update) {
         switch (update.getStatus()) {
             case DELETED: {
-                stopForeground(STOP_FOREGROUND_DETACH);
-                mNotificationBuilder.setOngoing(false);
-                mNotificationManager.cancel(NOTIFICATION_ID);
+                clearNotification();
                 tryStopSelf();
                 break;
             }
@@ -486,16 +498,7 @@ public class UpdaterService extends Service {
                 break;
             }
             case VERIFIED: {
-                stopForeground(STOP_FOREGROUND_DETACH);
-                mNotificationBuilder.setStyle(null);
-                mNotificationBuilder.setSmallIcon(R.drawable.ic_system_update);
-                mNotificationBuilder.setProgress(0, 0, false);
-                String text = getString(R.string.download_completed_notification);
-                mNotificationBuilder.setContentText(text);
-                mNotificationBuilder.setTicker(text);
-                mNotificationBuilder.setOngoing(false);
-                mNotificationBuilder.setAutoCancel(true);
-                mNotificationManager.notify(NOTIFICATION_ID, mNotificationBuilder.build());
+                clearNotification();
                 tryStopSelf();
                 break;
             }
@@ -575,7 +578,7 @@ public class UpdaterService extends Service {
                 break;
             }
             case INSTALLATION_CANCELLED: {
-                stopForeground(STOP_FOREGROUND_DETACH);
+                clearNotification();
                 tryStopSelf();
                 break;
             }
