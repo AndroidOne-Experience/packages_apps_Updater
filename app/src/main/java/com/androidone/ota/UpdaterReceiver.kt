@@ -46,7 +46,10 @@ class UpdaterReceiver : BroadcastReceiver() {
                 context.startService(cleanupIntent)
             }
 
-            if (shouldShowUpdateFailedNotification(context)) {
+            if (shouldShowUpdateInstalledNotification(context)) {
+                pref.edit().putBoolean(Constants.PREF_INSTALL_NOTIFIED, true).apply()
+                showUpdateInstalledNotification(context)
+            } else if (shouldShowUpdateFailedNotification(context)) {
                 pref.edit().putBoolean(Constants.PREF_INSTALL_NOTIFIED, true).apply()
                 showUpdateFailedNotification(context)
             }
@@ -56,7 +59,19 @@ class UpdaterReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_INSTALL_REBOOT: String = "com.androidone.ota.action.INSTALL_REBOOT"
 
+        private const val INSTALL_SUCCESS_NOTIFICATION_CHANNEL = "install_success_notification_channel"
         private const val INSTALL_ERROR_NOTIFICATION_CHANNEL = "install_error_notification_channel"
+
+        private fun shouldShowUpdateInstalledNotification(context: Context): Boolean {
+            val preferences = PreferenceManager.getDefaultSharedPreferences(context)
+            if (preferences.getBoolean(Constants.PREF_INSTALL_NOTIFIED, false)) {
+                return false
+            }
+
+            val buildTimestamp = SystemProperties.getLong(Constants.PROP_BUILD_DATE, 0)
+            val newBuildTimestamp = preferences.getLong(Constants.PREF_INSTALL_NEW_TIMESTAMP, -1)
+            return newBuildTimestamp != -1L && buildTimestamp == newBuildTimestamp
+        }
 
         private fun shouldShowUpdateFailedNotification(context: Context): Boolean {
             val preferences = PreferenceManager.getDefaultSharedPreferences(context)
@@ -74,9 +89,34 @@ class UpdaterReceiver : BroadcastReceiver() {
             return buildTimestamp == lastBuildTimestamp
         }
 
-        private fun showUpdateFailedNotification(context: Context) {
-            val buildInfo = context.getString(R.string.system_update_label)
+        private fun showUpdateInstalledNotification(context: Context) {
+            val notificationIntent = Intent(context, UpdatesActivity::class.java)
+            val intent =
+                PendingIntent.getActivity(
+                    context,
+                    0,
+                    notificationIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
 
+            val notificationChannel =
+                NotificationChannel(
+                    INSTALL_SUCCESS_NOTIFICATION_CHANNEL,
+                    context.getString(R.string.update_installed_channel_title),
+                    NotificationManager.IMPORTANCE_LOW,
+                )
+            val builder =
+                NotificationCompat.Builder(context, INSTALL_SUCCESS_NOTIFICATION_CHANNEL)
+                    .setContentIntent(intent)
+                    .setSmallIcon(R.drawable.ic_system_update)
+                    .setContentTitle(context.getString(R.string.installing_update_finished))
+
+            val nm = context.getSystemService(NotificationManager::class.java)!!
+            nm.createNotificationChannel(notificationChannel)
+            nm.notify(0, builder.build())
+        }
+
+        private fun showUpdateFailedNotification(context: Context) {
             val notificationIntent = Intent(context, UpdatesActivity::class.java)
             val intent =
                 PendingIntent.getActivity(
@@ -97,8 +137,6 @@ class UpdaterReceiver : BroadcastReceiver() {
                     .setContentIntent(intent)
                     .setSmallIcon(R.drawable.ic_system_update)
                     .setContentTitle(context.getString(R.string.update_failed_notification))
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(buildInfo))
-                    .setContentText(buildInfo)
 
             val nm = context.getSystemService(NotificationManager::class.java)!!
             nm.createNotificationChannel(notificationChannel)
