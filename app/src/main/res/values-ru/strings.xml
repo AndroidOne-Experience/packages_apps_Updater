@@ -41,7 +41,7 @@
     <string name="update_failed_notification">Ошибка обновления</string>
     <string name="installation_suspended_notification">Установка приостановлена</string>
 
-    <string name="new_updates_found_title">Новые обновления</string>
+    <string name="new_updates_found_title">Доступно новое обновление! </string>
 
     <string name="text_download_speed">%1$s, %2$s/с</string>
 
@@ -54,7 +54,7 @@
     <string name="installing_update_finished">Обновление успешно установлено</string>
     <string name="finalizing_package">Завершение установки пакета</string>
     <string name="preparing_ota_first_boot">Подготовка к первому запуску</string>
-    <string name="dialog_prepare_zip_message">Предварительная подготовка обновления</string>
+    <string name="dialog_prepare_zip_message">Предварительная подготовка...</string>
     <string name="dialog_battery_low_title">Низкий заряд батареи</string>
     <string name="dialog_battery_low_message_pct">Уровень батареи слишком низкий. Нужно минимум <xliff:g id="percent_discharging">%1$d</xliff:g>%% для продолжения, <xliff:g id="percent_charging">%2$d</xliff:g>%% при зарядке.</string>
     <string name="dialog_scratch_mounted_message">
@@ -104,7 +104,7 @@
     <string name="confirm_delete_local_update_dialog_message">Удалить импортированный пакет обновления?</string>
 
     <string name="apply_update_dialog_title">Применение обновления</string>
-    <string name="apply_update_dialog_message">Вы собираетесь установить <xliff:g id="update_name">%1$s</xliff:g>.\n\nЕсли нажать <xliff:g id="ok">%2$s</xliff:g>, устройство перезагрузится в режим рекавери для установки.\n\nПримечание: требуется совместимый рекавери, иначе установите вручную, скачав обновление.</string>
+    <string name="apply_update_dialog_message">Вы собираетесь установить <xliff:g id="update_name">%1$s</xliff:g>.\n\nЕсли нажать <xliff:g id="ok">%2$s</xliff:g>, устройство перезагрузится в режим рекавери для установки.\n\nПримечание: требуется совместимое рекавери, иначе установите обновление вручную.</string>
     <string name="apply_update_dialog_message_ab">Вы собираетесь установить <xliff:g id="update_name">%1$s</xliff:g>.\n\nПосле нажатия <xliff:g id="ok">%2$s</xliff:g> установка начнётся в фоне.\n\nПосле завершения будет предложена перезагрузка.</string>
 
     <string name="cancel_installation_dialog_message">Отменить установку?</string>
@@ -123,16 +123,16 @@
         <item quantity="other">Осталось <xliff:g id="count">%d</xliff:g> ч.</item>
     </plurals>
 
-    <string name="update_over_metered_network_info">Предупреждение о лимитированном подключении</string>
-    <string name="update_over_metered_network_message">Загрузка обновлений через мобильную сеть, лимитированный Wi-Fi или роуминг может привести к дополнительным расходам.</string>
+    <string name="update_over_metered_network_info">Предупреждение об ограниченным подключении</string>
+    <string name="update_over_metered_network_message">Загрузка обновлений через мобильную сеть, ограниченный Wi-Fi или роуминг может привести к дополнительным тратам.</string>
 
-    <string name="new_updates_channel_title">Новые обновления</string>
+    <string name="new_updates_channel_title">Доступно новое обновление!</string>
     <string name="ongoing_channel_title">Активные загрузки</string>
     <string name="update_installed_channel_title">Обновление установлено</string>
     <string name="update_failed_channel_title">Ошибка обновления</string>
 
     <string name="local_update_import">Локальное обновление</string>
-    <string name="local_update_import_progress">Импорт OTA-пакета…</string>
+    <string name="local_update_import_progress">Импорт OTA-пакета...</string>
     <string name="local_update_import_success">%1$s импортирован. Установить?</string>
     <string name="local_update_import_failure">Ошибка импорта обновления</string>
     <string name="local_update_import_install">Установить</string>
@@ -141,9 +141,9 @@
     <string name="check_for_update_failed">Ошибка проверки обновлений</string>
     <string name="system_update_label">Обновление системы</string>
     <string name="system_up_to_date">Система актуальна</string>
-    <string name="system_update_available">Доступно обновление</string>
+    <string name="system_update_available">Доступно новое обновление!</string>
 
-    <string name="checking_for_update">Проверка обновления…</string>
+    <string name="checking_for_update">Проверка обновления...</string>
     <string name="system_update_downloading">Загрузка обновления</string>
     <string name="system_update_downloading_paused">Загрузка приостановлена</string>
     <string name="system_update_installing">Установка обновления</string>
